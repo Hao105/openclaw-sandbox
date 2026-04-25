@@ -1,0 +1,22 @@
+# Docker volumes and large data files
+postgres_data/*
+!postgres_data/.gitkeep
+
+ollama_data/*
+!ollama_data/.gitkeep
+
+ollama_data_new/*
+!ollama_data_new/.gitkeep
+# Env files (If added later)
+.env
+.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# OpenClaw Dynamic State & Sandbox
+postgres_data/
+workspace/*
+!workspace/openclaw.json
+!workspace/openclaw.json.*

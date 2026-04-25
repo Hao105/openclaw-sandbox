@@ -1,0 +1,74 @@
+# version: '3.8' (obsolete)
+
+services:
+  # 1. 資料庫 (記憶體)：解決「記憶體缺失」與「無法儲存設定」的問題
+  db:
+    image: postgres:15-alpine
+    container_name: openclaw_db
+    restart: always
+    environment:
+      - POSTGRES_USER=openclaw
+      - POSTGRES_PASSWORD=openclaw_pass # 【已修復】改用固定密碼避免報錯
+      - POSTGRES_DB=openclaw
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - sandbox_net
+
+  # 2. 大腦 (Ollama)：你的本地端 AI
+  ollama:
+    image: ollama/ollama:latest
+    container_name: local_ollama
+    restart: always
+    volumes:
+      - ./ollama_data_new:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - sandbox_net
+
+  # 3. 代理人 (OpenClaw)：手腳與介面
+  openclaw-agent:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw_sandbox
+    user: "root"
+    restart: always
+    depends_on:
+      - db
+      - ollama
+    ports:
+      - "18789:18789"
+      - "18791:18791"
+    environment:
+      # ⭐ 關鍵 1：讓介面認識資料庫，解鎖 Save 按鈕 (密碼需對應上方的 DB 密碼)
+      - DATABASE_URL=postgresql://openclaw:openclaw_pass@db:5432/openclaw
+      # ⭐ 關鍵 2：解開安全鎖，解決 "origin not allowed" 報錯
+      - ALLOWED_ORIGINS=*
+      - LLM_PROVIDER=ollama
+      - LLM_API_BASE=http://ollama:11434
+      # 終極覆蓋方案：強制所有的 Ollama 插件路徑全部指向 Docker 內部
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_HOST=http://ollama:11434
+      #- LLM_MODEL=gemma2:2b
+      #- LLM_MODEL=llama3:8b
+      - LLM_MODEL=qwen2.5-coder:7b
+      - OPENCLAW_GATEWAY_TOKEN=fisc1234 # 【可自訂】介面連線用的守衛驗證 Token
+      - OLLAMA_API_KEY=fisc1234 # 【可自訂】Ollama 整合金鑰 (本地隔離測試時可隨便打字串)
+    volumes:
+      - ./workspace:/root/.openclaw
+    networks:
+      - sandbox_net
+
+networks:
+  sandbox_net:
+    driver: bridge
